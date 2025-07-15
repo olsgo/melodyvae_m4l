@@ -12,8 +12,8 @@ located in a path that contains spaces. Move the `melodyvae_m4l` directory to a
 location without spaces (or create a symlink) before running `npm install`.
 
 The project now depends on TensorFlow.js 4.x which includes pre-built
-binaries for Apple&nbsp;Silicon. Max 9 ships with Node&nbsp;20 and works
-with these versions. If you use your own Node installation, Node&nbsp;18 or
+binaries for Apple&nbsp;Silicon. Max&nbsp;9 ships with Node&nbsp;20 and works
+with these versions. If you use your own Node&nbsp;installation, Node&nbsp;18 or
 newer is recommended.
 
 Electron is no longer needed for this Max for Live device, so the
