@@ -1816,7 +1816,7 @@
 
 			}
 ,
-			"node-pre-gyp" : 			{
+			"@mapbox/node-pre-gyp" : 			{
 				"kind" : "file",
 				"local" : 1,
 				"singleton" : 				{
