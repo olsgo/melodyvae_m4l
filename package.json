@@ -20,8 +20,6 @@
   },
   "description": "Max for Live(M4L) Melody generator using Variational Autoencoder(VAE)",
   "devDependencies": {
-    "electron": "^4.2.12",
-    "electron-rebuild": "^3.2.9"
   },
   "overrides": {
     "@tensorflow/tfjs-node": "^4.22.0",
