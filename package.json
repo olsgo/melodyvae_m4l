@@ -10,22 +10,20 @@
   "license": "ISC",
   "dependencies": {
     "@magenta/music": "^1.23.1",
-    "@tensorflow/tfjs-node": "^3.11.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
     "@tonejs/midi": "^2.0.7",
     "cross-fetch": "^3.0.4",
     "glob": "^7.1.4",
-    "node-pre-gyp": "^0.17.0",
+    "@mapbox/node-pre-gyp": "^1.0.9",
     "tiny-glob": "^0.2.6",
     "ws": "^6.2.2"
   },
   "description": "Max for Live(M4L) Melody generator using Variational Autoencoder(VAE)",
   "devDependencies": {
-    "electron": "^4.2.12",
-    "electron-rebuild": "^3.2.9"
   },
   "overrides": {
-    "@tensorflow/tfjs-node": "^3.11.0",
-    "node-pre-gyp": "^0.17.0"
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@mapbox/node-pre-gyp": "^1.0.9"
   },
   "repository": {
     "type": "git",
