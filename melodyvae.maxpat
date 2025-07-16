@@ -6800,7 +6800,6 @@
 
 			}
 , 			{
-, 			{
 				"patchline" : 				{
 					"destination" : [ "obj-39", 4 ],
 					"source" : [ "obj-97", 0 ]
