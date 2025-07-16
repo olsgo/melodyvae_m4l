@@ -242,15 +242,15 @@ Max.addHandler("train", ()=>{
 });
 
 // Generate a rhythm pattern
-Max.addHandler("generate", (z1, z2, thresh_min, thresh_max = 1.0, noise_range = 0.0)=>{
+Max.addHandler("generate", (z1, z2, thresh_min, thresh_max = 1.0, noise_range = 0.0, grid_offset = 1.0)=>{
     try {
-        generatePattern(z1, z2, thresh_min, thresh_max, noise_range);
+        generatePattern(z1, z2, thresh_min, thresh_max, noise_range, grid_offset);
     } catch(error) {
         error_status(error);
     }
 });
 
-async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
+async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range, grid_offset = 1.0){
     if (vae.isReadyToGenerate()){    
       if (isGenerating) return;
   
@@ -288,7 +288,8 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
                     pitch_sequence.push(i + MIN_MIDI_NOTE);
                     velocity_sequence.push(Math.floor(velocities[i][j]*127.));
                     duration_sequence.push(Math.min(Math.floor(durations[i][j]*64.), 127));
-                    timeshift_sequence.push(timeshifts[i][j]);  // timing offset value
+                    // Apply grid offset scaling to timeshift values
+                    timeshift_sequence.push(timeshifts[i][j] * grid_offset);
                     break;
                 }
             }
@@ -304,7 +305,7 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
         Max.outlet("pitch_output", k+1, pitch_sequence.join(" "));
         Max.outlet("velocity_output", k+1, velocity_sequence.join(" "));
         Max.outlet("duration_output", k+1, duration_sequence.join(" "));
-        Max.outlet("timeshift_output", k+1, timeshift_sequence.join(" "));  // new timing offset output
+        Max.outlet("timeshift_output", k+1, timeshift_sequence.join(" "));  // now scaled by grid_offset
     }
 
       Max.outlet("generated", 1);

@@ -8,6 +8,7 @@ A derivative of [RhythmVAE_M4l](https://github.com/naotokui/RhythmVAE_M4L), opti
 - **Apple Silicon optimization** with TensorFlow.js 4.x
 - **Pattern encoding** to encode existing melodies into latent space
 - **Model bending** for creative sound exploration with noise injection
+- **Timing offset support** with user-controllable grid offset for humanization
 - **Improved training performance** with validation loss monitoring
 - **Enhanced error handling** and user feedback
 - **Real-time generation** with adjustable threshold controls
@@ -63,6 +64,14 @@ The device uses a Variational Autoencoder (VAE) trained on MIDI melody data to g
 
 ### Advanced Features
 
+#### Timing Offset & Grid Offset Control
+1. **Automatic Learning**: Timing variations are automatically learned during training
+2. **Grid Offset Control**: Use the "grid offset" dial to control timing humanization:
+   - **0.0**: Perfectly quantized output (no timing variation)
+   - **1.0**: Natural timing variations as learned by the model
+   - **2.0**: Exaggerated timing variations for dramatic swing/groove
+3. **Real-time Control**: Adjust timing feel without retraining the model
+
 #### Pattern Encoding
 1. **Record Pattern**: Input a melody pattern 
 2. **Encode**: Find the pattern's position in latent space
@@ -80,9 +89,9 @@ The device processes MIDI notes in the range C3-B4 (MIDI notes 48-71), mapping t
 ## Model Architecture
 
 The VAE consists of:
-- **Encoder**: Processes onset, velocity, and duration data through separate dense layers
+- **Encoder**: Processes onset, velocity, duration, and timing offset data through separate dense layers
 - **Latent Space**: 2-dimensional space for easy visualization and control
-- **Decoder**: Generates onset, velocity, and duration patterns from latent coordinates
+- **Decoder**: Generates onset, velocity, duration, and timing offset patterns from latent coordinates
 
 ### Training Optimizations
 - **Batch Size**: 128 for optimal training speed
