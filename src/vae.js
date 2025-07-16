@@ -21,15 +21,17 @@ const TEST_BATCH_SIZE = 128;  // Reduced from 1000 for more representative valid
 const ON_LOSS_COEF = 1.0;  // Increased from 0.75 for better onset reconstruction
 const DUR_LOSS_COEF = 1.0;  // coef for duration loss
 const VEL_LOSS_COEF = 2.5;  // coef for velocity loss
-const TIME_LOSS_COEF = 1.5;  // coef for timeshift loss
+const TIME_LOSS_COEF = 2.0;  // Increased from 1.5 for better timeshift learning
 
 // Training optimization parameters
 const LEARNING_RATE = 0.001;  // Initial learning rate
-const LEARNING_RATE_DECAY = 0.95;  // Decay factor per epoch
+const LEARNING_RATE_DECAY = 0.98;  // More conservative decay factor
+const LEARNING_RATE_DECAY_EPOCHS = 8;  // Decay every 8 epochs instead of 5
 const GRADIENT_CLIP_NORM = 1.0;  // Gradient clipping threshold
-const KL_ANNEALING_EPOCHS = 10;  // Number of epochs to anneal KL loss
+const KL_ANNEALING_EPOCHS = 20;  // Slower KL annealing to prevent timeshift collapse
+const TIMESHIFT_RAMP_EPOCHS = 15;  // Gradual ramping of timeshift loss weight
 const DROPOUT_RATE = 0.2;  // Dropout rate for regularization
-const EARLY_STOPPING_PATIENCE = 15;  // Stop if no improvement for N epochs
+const EARLY_STOPPING_PATIENCE = 25;  // More patience for complex timeshift learning
 
 let dataHandlerOnset;
 let dataHandlerVelocity;
@@ -336,8 +338,11 @@ class ConditionalVAE {
       velocity_loss = velocity_loss.mul(VEL_LOSS_COEF);
       let duration_loss = this.mseLoss(yTrueDur, yDur);
       duration_loss = duration_loss.mul(DUR_LOSS_COEF);
+      
+      // Gradual timeshift loss ramping to prevent early domination
       let timeshift_loss = this.mseLoss(yTrueTime, yTime);
-      timeshift_loss = timeshift_loss.mul(TIME_LOSS_COEF);
+      const timeshift_weight = Math.min(1.0, (currentEpoch + 1) / TIMESHIFT_RAMP_EPOCHS);
+      timeshift_loss = timeshift_loss.mul(TIME_LOSS_COEF * timeshift_weight);
 
       // KL loss with annealing (β-VAE technique)
       const kl_loss = this.klLoss(z_mean, z_log_var);
@@ -390,12 +395,17 @@ class ConditionalVAE {
 
       logMessage(`[Epoch ${i + 1}]\n`);
       Max.outlet("epoch", i + 1, epochs);
-      utils.log_status(`Epoch: ${i + 1} (LR: ${currentLearningRate.toFixed(6)})`);
+      
+      // Calculate current weight schedules for logging
+      const current_kl_weight = Math.min(1.0, i / KL_ANNEALING_EPOCHS);
+      const current_timeshift_weight = Math.min(1.0, (i + 1) / TIMESHIFT_RAMP_EPOCHS);
+      
+      utils.log_status(`Epoch: ${i + 1} (LR: ${currentLearningRate.toFixed(6)}, KL: ${current_kl_weight.toFixed(3)}, TS: ${current_timeshift_weight.toFixed(3)})`);
 
       epochLoss = 0;
       
-      // Learning rate decay
-      if (i > 0 && i % 5 === 0) {
+      // Learning rate decay - less aggressive schedule
+      if (i > 0 && i % LEARNING_RATE_DECAY_EPOCHS === 0) {
         currentLearningRate *= LEARNING_RATE_DECAY;
         optimizer = tf.train.adam(currentLearningRate);
         logMessage(`\tLearning rate decayed to: ${currentLearningRate.toFixed(6)}`);
@@ -434,6 +444,16 @@ class ConditionalVAE {
 
       logMessage(`\tVal Loss: ${valLoss.toFixed(3)}. Epoch ${i} / ${epochs}\n`);
       Max.outlet("val_loss", valLoss);
+
+      // Monitor timeshift output variance to detect collapse
+      const [, , , decodedTimeshift] = this.apply([testBatchInputOn, testBatchInputVel, testBatchInputDur, testBatchInputTime]);
+      const timeshiftVariance = tf.moments(decodedTimeshift).variance.dataSync()[0];
+      logMessage(`\tTimeshift variance: ${timeshiftVariance.toFixed(6)} (target > 0.01)`);
+      
+      // Warn if timeshift variance is too low (indicating collapse)
+      if (timeshiftVariance < 0.01 && i > KL_ANNEALING_EPOCHS) {
+        logMessage(`\t⚠️  WARNING: Timeshift variance low - potential feature collapse`);
+      }
 
       // Early stopping check
       if (valLoss < bestValLoss) {
