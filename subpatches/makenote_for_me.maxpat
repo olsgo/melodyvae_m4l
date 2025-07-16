@@ -326,7 +326,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "float" ],
 					"patching_rect" : [ 460.20001220703125, 200.0, 39.0, 22.0 ],
-					"text" : "/ 127."
+					"text" : "* 1."
 				}
 
 			}
@@ -338,7 +338,7 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "float" ],
 					"patching_rect" : [ 460.20001220703125, 229.0, 68.5, 22.0 ],
-					"text" : "* 0."
+					"text" : "*"
 				}
 
 			}
