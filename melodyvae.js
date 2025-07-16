@@ -115,60 +115,46 @@ function processPianoroll(midiFile, augmentation){
         }
     })
 
-    //data augmentation - with all keys
+    // Simplified data augmentation - more memory efficient
     if (augmentation){
-        aug_onsets = [];
-        aug_velocities = [];
-        aug_durations = [];
-
-        onsets.forEach(function (onset, i){
-            let velocity = velocities[i];
-            let duration = durations[i];
+        let original_count = onsets.length;
+        // Only add a few key transpositions to avoid memory explosion
+        let transpositions = [-12, -7, -5, 5, 7, 12]; // common intervals
+        
+        for (let t = 0; t < original_count; t++){
+            let onset = onsets[t];
+            let velocity = velocities[t];
+            let duration = durations[t];
             let maxv = utils.getMaxPitch(onset) + MIN_MIDI_NOTE;
             let minv = utils.getMinPitch(onset) + MIN_MIDI_NOTE;
-            for (let diff = -12; diff <= 12; diff++){
-                if (maxv + diff <= MAX_MIDI_NOTE && minv + diff >= MIN_MIDI_NOTE){ // if it's in the transposition range...
-                    let newonset     = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
+            
+            for (let diff of transpositions){
+                if (maxv + diff <= MAX_MIDI_NOTE && minv + diff >= MIN_MIDI_NOTE){
+                    let newonset = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
                     let newvelocity = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
                     let newduration = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
+                    
                     for (var i = 0; i < NUM_MIDI_CLASSES; i++){
-                        for (var j =0; j < LOOP_DURATION; j++){
-                            if (i + diff >= 0 && i + diff < NUM_MIDI_CLASSES){
-                                if (onset[i][j] > 0) {  // only if there is onset
-                                    newonset[i + diff][j] = 1; // transpose
-                                    newvelocity[i + diff][j] = velocity[i][j];
-                                    newduration[i + diff][j] = duration[i][j];
-                                }
+                        for (var j = 0; j < LOOP_DURATION; j++){
+                            if (i + diff >= 0 && i + diff < NUM_MIDI_CLASSES && onset[i][j] > 0) {
+                                newonset[i + diff][j] = 1;
+                                newvelocity[i + diff][j] = velocity[i][j];
+                                newduration[i + diff][j] = duration[i][j];
                             }
                         }
                     }
-                    aug_onsets.push(newonset);                    
-                    aug_velocities.push(newvelocity);
-                    aug_durations.push(newduration);
+                    onsets.push(newonset);
+                    velocities.push(newvelocity);
+                    durations.push(newduration);
                 }
             }
-        });
-
-        onsets.push(...aug_onsets);
-        velocities.push(...aug_velocities);
-        durations.push(...aug_durations);
+        }
     }
 
     console.assert(onsets.length == velocities.length && velocities.length == durations.length,
-         "Something wrong with augmentation? array length must be the same.");
-    // /*    for debug - output pianoroll */
-    // if (durations.length > 0){ 
-    //     var index = utils.getRandomInt(durations.length); 
-    //     let x = durations[index];
-    //     // for (var i=0; i< NUM_MIDI_CLASSES; i++){
-    //     //     for (var j=0; j < LOOP_DURATION; j++){
-    //     //         // Max.outlet("matrix_output", j, i, Math.ceil(x[i][j]));
-    //     //     }
-    //     // }
-    //     console.log(x);
-    // }
+         "Data arrays length mismatch after processing");
     
-    // 2D array to tf.tensor2d
+    // Convert 2D arrays to tf.tensor2d
     for (var i=0; i < onsets.length; i++){
         if (getNumOfOnsets(onsets[i]) > MIN_ONSETS_THRESHOLD){
             train_data_onsets.push(tf.tensor2d(onsets[i], [NUM_MIDI_CLASSES, LOOP_DURATION]));
@@ -201,10 +187,10 @@ Max.addHandler("midi", (filename, augmentation) =>  {
     var count = 0;
     // is directory? 
     if (fs.existsSync(filename) && fs.lstatSync(filename).isDirectory()){
-        // iterate over *.mid or *.midi files 
-        // TODO: it may match *.mido *.midifile *.middleageman etc...
-        glob(filename + '**/*.mid', {}, (err, files)=>{
-            if (err) console.log(err); 
+        // iterate over *.mid or *.midi files
+        glob(filename + '**/*.@(mid|midi)', {}, (err, files)=>{
+            utils.post("# of files in dir: " + files.length); 
+            if (err) utils.error(err); 
             else {
                 for (var idx in files){               
                     try {
@@ -218,7 +204,7 @@ Max.addHandler("midi", (filename, augmentation) =>  {
             }
         })
     } else {
-        if (processMidiFile(filename,augmentation)) count += 1;
+        if (processMidiFile(filename, augmentation)) count += 1;
         Max.post("# of midi files added: " + count);    
         reportNumberOfBars();
     }
@@ -320,7 +306,7 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
 Max.addHandler("clear_train", ()=>{
     train_data_onsets = [];  // clear
     train_data_velocities = [];
-    train_data_timeshift = [];  
+    train_data_durations = [];  
     reportNumberOfBars();
 });
 
