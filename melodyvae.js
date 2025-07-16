@@ -308,6 +308,28 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range, grid
         Max.outlet("timeshift_output", k+1, timeshift_sequence.join(" "));  // now scaled by grid_offset
     }
 
+      // Debug output: raw (unscaled) timeshift values for inspection
+      for (var k=0; k< 16; k++){ // 16 = number of monophonic sequence in live.step
+        var raw_timeshift_sequence = [];
+        for (var j=0; j < LOOP_DURATION; j++){
+            var count = 0;
+            for (var i=0; i< NUM_MIDI_CLASSES; i++){
+                if (onsets[i][j] >= thresh_min && onsets[i][j] <= thresh_max) count++; // if there is an onset
+                if (count > k) {
+                    // Output raw timeshift value (before grid_offset scaling)
+                    raw_timeshift_sequence.push(timeshifts[i][j]);
+                    break;
+                }
+            }
+            if (count <= k){ // padding if there is no note
+                raw_timeshift_sequence.push(0.0);
+            }
+        }
+
+        // Debug output for raw timeshift values (for inspection only)
+        Max.outlet("raw_timeshift_output", k+1, raw_timeshift_sequence.join(" "));
+    }
+
       Max.outlet("generated", 1);
       utils.log_status("");
       isGenerating = false;

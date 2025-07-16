@@ -5913,11 +5913,22 @@
 				"box" : 				{
 					"id" : "obj-38",
 					"maxclass" : "newobj",
-					"numinlets" : 9,
-					"numoutlets" : 9,
-					"outlettype" : [ "", "", "", "", "", "", "", "", "" ],
-					"patching_rect" : [ 86.5, 450.0, 405.0, 22.0 ],
-					"text" : "route matrix_output epoch loss clear status train_bars training matrix_clear"
+					"numinlets" : 10,
+					"numoutlets" : 10,
+					"outlettype" : [ "", "", "", "", "", "", "", "", "", "" ],
+					"patching_rect" : [ 86.5, 450.0, 475.0, 22.0 ],
+					"text" : "route matrix_output epoch loss clear status train_bars training matrix_clear raw_timeshift_output"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-debug_raw_timeshift",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 556.5, 485.0, 140.0, 22.0 ],
+					"text" : "print raw_timeshift_debug"
 				}
 
 			}
@@ -6803,6 +6814,13 @@
 				"patchline" : 				{
 					"destination" : [ "obj-39", 4 ],
 					"source" : [ "obj-97", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-debug_raw_timeshift", 0 ],
+					"source" : [ "obj-38", 8 ]
 				}
 
 			}
