@@ -26,6 +26,7 @@ Max.outlet("loaded");
 var train_data_onsets = [];
 var train_data_velocities = []; 
 var train_data_durations = []; 
+var train_data_timeshifts = []; 
 var isGenerating = false;
 
 function isValidMIDIFile(midiFile){
@@ -74,6 +75,7 @@ function processPianoroll(midiFile, augmentation){
     var onsets = [];
     var velocities = [];
     var durations = [];
+    var timeshifts = [];
 
     midiFile.tracks.forEach(track => {
         
@@ -86,6 +88,7 @@ function processPianoroll(midiFile, augmentation){
                 if (pitch < NUM_MIDI_CLASSES){
                     let timing = getNoteIndexAndTimeshift(note, tempo);
                     let index = timing[0];
+                    let timeshift = timing[1];  // now we store the timeshift value
                     let duration = timing[2];
 
                     // add new array
@@ -93,6 +96,7 @@ function processPianoroll(midiFile, augmentation){
                         onsets.push(utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION));
                         velocities.push(utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION));
                         durations.push(utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION));
+                        timeshifts.push(utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION));
                     }
 
                     let note_id = pitch;
@@ -105,9 +109,13 @@ function processPianoroll(midiFile, augmentation){
                     matrix = velocities[Math.floor(index / LOOP_DURATION)];
                     matrix[note_id][index % LOOP_DURATION] = note.velocity;    // normalized 0 - 1
                     
-                    // store timeshift
+                    // store duration
                     matrix = durations[Math.floor(index / LOOP_DURATION)];
                     matrix[note_id][index % LOOP_DURATION] = duration;    
+
+                    // store timeshift
+                    matrix = timeshifts[Math.floor(index / LOOP_DURATION)];
+                    matrix[note_id][index % LOOP_DURATION] = timeshift;  // normalized timing offset
                 } else {
                     console.log("out of scope ", note.midi);
                 }
@@ -125,6 +133,7 @@ function processPianoroll(midiFile, augmentation){
             let onset = onsets[t];
             let velocity = velocities[t];
             let duration = durations[t];
+            let timeshift = timeshifts[t];
             let maxv = utils.getMaxPitch(onset) + MIN_MIDI_NOTE;
             let minv = utils.getMinPitch(onset) + MIN_MIDI_NOTE;
             
@@ -133,6 +142,7 @@ function processPianoroll(midiFile, augmentation){
                     let newonset = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
                     let newvelocity = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
                     let newduration = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
+                    let newtimeshift = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
                     
                     for (var i = 0; i < NUM_MIDI_CLASSES; i++){
                         for (var j = 0; j < LOOP_DURATION; j++){
@@ -140,18 +150,20 @@ function processPianoroll(midiFile, augmentation){
                                 newonset[i + diff][j] = 1;
                                 newvelocity[i + diff][j] = velocity[i][j];
                                 newduration[i + diff][j] = duration[i][j];
+                                newtimeshift[i + diff][j] = timeshift[i][j];  // preserve timing offset during transposition
                             }
                         }
                     }
                     onsets.push(newonset);
                     velocities.push(newvelocity);
                     durations.push(newduration);
+                    timeshifts.push(newtimeshift);
                 }
             }
         }
     }
 
-    console.assert(onsets.length == velocities.length && velocities.length == durations.length,
+    console.assert(onsets.length == velocities.length && velocities.length == durations.length && durations.length == timeshifts.length,
          "Data arrays length mismatch after processing");
     
     // Convert 2D arrays to tf.tensor2d
@@ -160,6 +172,7 @@ function processPianoroll(midiFile, augmentation){
             train_data_onsets.push(tf.tensor2d(onsets[i], [NUM_MIDI_CLASSES, LOOP_DURATION]));
             train_data_velocities.push(tf.tensor2d(velocities[i], [NUM_MIDI_CLASSES, LOOP_DURATION]));
             train_data_durations.push(tf.tensor2d(durations[i], [NUM_MIDI_CLASSES, LOOP_DURATION]));
+            train_data_timeshifts.push(tf.tensor2d(timeshifts[i], [NUM_MIDI_CLASSES, LOOP_DURATION]));
         }
     }
 }
@@ -225,7 +238,7 @@ Max.addHandler("train", ()=>{
     utils.log_status("Start training...");
     console.log("# of bars in training data:", train_data_onsets.length * 2);
     reportNumberOfBars();
-    vae.loadAndTrain(train_data_onsets, train_data_velocities, train_data_durations);
+    vae.loadAndTrain(train_data_onsets, train_data_velocities, train_data_durations, train_data_timeshifts);
 });
 
 // Generate a rhythm pattern
@@ -242,7 +255,7 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
       if (isGenerating) return;
   
       isGenerating = true;
-      let [onsets, velocities, durations] = vae.generatePattern(z1, z2, noise_range);
+      let [onsets, velocities, durations, timeshifts] = vae.generatePattern(z1, z2, noise_range);
       Max.outlet("matrix_clear",1); // clear all
 
       // For Grid
@@ -265,6 +278,7 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
         var pitch_sequence = [];
         var velocity_sequence = [];
         var duration_sequence = [];
+        var timeshift_sequence = [];
         for (var j=0; j < LOOP_DURATION; j++){
 
             var count = 0;
@@ -274,6 +288,7 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
                     pitch_sequence.push(i + MIN_MIDI_NOTE);
                     velocity_sequence.push(Math.floor(velocities[i][j]*127.));
                     duration_sequence.push(Math.min(Math.floor(durations[i][j]*64.), 127));
+                    timeshift_sequence.push(timeshifts[i][j]);  // timing offset value
                     break;
                 }
             }
@@ -281,6 +296,7 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
                 pitch_sequence.push(0);
                 velocity_sequence.push(0);
                 duration_sequence.push(0);
+                timeshift_sequence.push(0.0);
             }
         }
 
@@ -288,6 +304,7 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
         Max.outlet("pitch_output", k+1, pitch_sequence.join(" "));
         Max.outlet("velocity_output", k+1, velocity_sequence.join(" "));
         Max.outlet("duration_output", k+1, duration_sequence.join(" "));
+        Max.outlet("timeshift_output", k+1, timeshift_sequence.join(" "));  // new timing offset output
     }
 
       Max.outlet("generated", 1);
@@ -306,7 +323,8 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
 Max.addHandler("clear_train", ()=>{
     train_data_onsets = [];  // clear
     train_data_velocities = [];
-    train_data_durations = [];  
+    train_data_durations = [];
+    train_data_timeshifts = [];  
     reportNumberOfBars();
 });
 
@@ -355,17 +373,20 @@ Max.addHandler("bend", (noise_range = 0.0)=>{
 var input_onset;
 var input_velocity; 
 var input_duration;
+var input_timeshift;
 Max.addHandler("encode_start", (is_test) =>  {
     Max.post("encode_start");
     input_onset = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
     input_velocity = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
     input_duration = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
+    input_timeshift = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
 
     if (is_test){
         for (var i=0; i < LOOP_DURATION; i=i+4){
             input_onset[0][i] = 1;
             input_velocity[0][i] = 0.8;
             input_duration[0][i] = 0.5;
+            input_timeshift[0][i] = 0.0;  // no timing offset for test
         }
     }
 });
@@ -376,16 +397,18 @@ Max.addHandler("encode_add", (pitch, time, duration, velocity, muted) =>  {
         var unit = 0.25; // 1.0 = quarter note, grid size = 16th note 
         const half_unit = unit * 0.5;
         const index = Math.max(0, Math.floor((time + half_unit) / unit)); // centering 
+        const timeshift = (time - unit * index) / half_unit; // normalized timing offset
         const durationUnit = (60.0 / 120.0) * 2.0; // duration of half note at 120 BPM
         const normalizedDuration = Math.max(0.1, Math.min(duration / durationUnit, 2.0));
         
-        Max.post("index", index, "pitch", pitch);
+        Max.post("index", index, "pitch", pitch, "timeshift", timeshift);
         // Ignore notes after the first 2 bars and notes outside MIDI range
         if (index < LOOP_DURATION && pitch >= MIN_MIDI_NOTE && pitch <= MAX_MIDI_NOTE){
             let note_id = pitch - MIN_MIDI_NOTE; // convert to 0-23 range
             input_onset[note_id][index] = 1;
             input_velocity[note_id][index] = velocity/127.;
             input_duration[note_id][index] = normalizedDuration;
+            input_timeshift[note_id][index] = timeshift;
         }
     }
 });
@@ -394,12 +417,14 @@ Max.addHandler("encode_done", () =>  {
     utils.post(input_onset);
     utils.post(input_velocity);
     utils.post(input_duration);
+    utils.post(input_timeshift);
 
     // Encoding!
     var inputOn = tf.tensor2d(input_onset, [NUM_MIDI_CLASSES, LOOP_DURATION]);
     var inputVel = tf.tensor2d(input_velocity, [NUM_MIDI_CLASSES, LOOP_DURATION]);
     var inputDur = tf.tensor2d(input_duration, [NUM_MIDI_CLASSES, LOOP_DURATION]);
-    let zs = vae.encodePattern(inputOn, inputVel, inputDur);
+    var inputTime = tf.tensor2d(input_timeshift, [NUM_MIDI_CLASSES, LOOP_DURATION]);
+    let zs = vae.encodePattern(inputOn, inputVel, inputDur, inputTime);
     
     // output encoded z vector
     utils.post(zs);
