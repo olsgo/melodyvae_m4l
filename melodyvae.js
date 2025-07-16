@@ -273,40 +273,48 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range, grid
       }
 
 
-      // live.step has mono-phonic sequences (up to 16 tracks)
-      for (var k=0; k< 16; k++){ // 16 = number of monophonic sequence in live.step
-        var pitch_sequence = [];
-        var velocity_sequence = [];
-        var duration_sequence = [];
-        var timeshift_sequence = [];
-        for (var j=0; j < LOOP_DURATION; j++){
-
-            var count = 0;
-            for (var i=0; i< NUM_MIDI_CLASSES; i++){
-                if (onsets[i][j] >= thresh_min && onsets[i][j] <= thresh_max) count++; // if there is an onset
-                if (count > k) {
-                    pitch_sequence.push(i + MIN_MIDI_NOTE);
-                    velocity_sequence.push(Math.floor(velocities[i][j]*127.));
-                    duration_sequence.push(Math.min(Math.floor(durations[i][j]*64.), 127));
-                    // Apply grid offset scaling to timeshift values
-                    timeshift_sequence.push(timeshifts[i][j] * grid_offset);
-                    break;
-                }
-            }
-            if (count <= k){ // padding if there is no note
-                pitch_sequence.push(0);
-                velocity_sequence.push(0);
-                duration_sequence.push(0);
-                timeshift_sequence.push(0.0);
-            }
+      // Default monophonic output: choose the most confident note for each step
+      var pitch_sequence = [];
+      var velocity_sequence = [];
+      var duration_sequence = [];
+      var timeshift_sequence = [];
+      for (var j = 0; j < LOOP_DURATION; j++) {
+        var bestIdx = -1;
+        var bestProb = -Infinity;
+        for (var i = 0; i < NUM_MIDI_CLASSES; i++) {
+          var prob = onsets[i][j];
+          if (prob >= thresh_min && prob <= thresh_max && prob > bestProb) {
+            bestProb = prob;
+            bestIdx = i;
+          }
         }
+        if (bestIdx >= 0) {
+          pitch_sequence.push(bestIdx + MIN_MIDI_NOTE);
+          velocity_sequence.push(Math.floor(velocities[bestIdx][j] * 127.));
+          duration_sequence.push(Math.min(Math.floor(durations[bestIdx][j] * 64.), 127));
+          // Apply grid offset scaling to timeshift values
+          timeshift_sequence.push(timeshifts[bestIdx][j] * grid_offset);
+        } else {
+          pitch_sequence.push(0);
+          velocity_sequence.push(0);
+          duration_sequence.push(0);
+          timeshift_sequence.push(0.0);
+        }
+      }
 
-        // output for live.step object
-        Max.outlet("pitch_output", k+1, pitch_sequence.join(" "));
-        Max.outlet("velocity_output", k+1, velocity_sequence.join(" "));
-        Max.outlet("duration_output", k+1, duration_sequence.join(" "));
-        Max.outlet("timeshift_output", k+1, timeshift_sequence.join(" "));  // now scaled by grid_offset
-    }
+      // output monophonic sequence on track 1
+      Max.outlet("pitch_output", 1, pitch_sequence.join(" "));
+      Max.outlet("velocity_output", 1, velocity_sequence.join(" "));
+      Max.outlet("duration_output", 1, duration_sequence.join(" "));
+      Max.outlet("timeshift_output", 1, timeshift_sequence.join(" "));
+
+      // clear remaining tracks
+      for (var k = 1; k < 16; k++) {
+        Max.outlet("pitch_output", k + 1, Array(LOOP_DURATION).fill(0).join(" "));
+        Max.outlet("velocity_output", k + 1, Array(LOOP_DURATION).fill(0).join(" "));
+        Max.outlet("duration_output", k + 1, Array(LOOP_DURATION).fill(0).join(" "));
+        Max.outlet("timeshift_output", k + 1, Array(LOOP_DURATION).fill(0.0).join(" "));
+      }
 
       Max.outlet("generated", 1);
       utils.log_status("");
