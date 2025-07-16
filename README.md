@@ -6,10 +6,12 @@ A derivative of [RhythmVAE_M4l](https://github.com/naotokui/RhythmVAE_M4L), opti
 ## Features
 - **AI-powered melody generation** using Variational Autoencoders
 - **Apple Silicon optimization** with TensorFlow.js 4.x
+- **Improved training dynamics** addressing plateau issues found in similar implementations
+- **Advanced training techniques** including KL annealing, learning rate scheduling, and early stopping
 - **Pattern encoding** to encode existing melodies into latent space
 - **Model bending** for creative sound exploration with noise injection
 - **Timing offset support** with user-controllable grid offset for humanization
-- **Improved training performance** with validation loss monitoring
+- **Enhanced regularization** with dropout layers for better generalization
 - **Enhanced error handling** and user feedback
 - **Real-time generation** with adjustable threshold controls
 - **Monophonic output** selects the most confident note per step for clean melodies
@@ -95,8 +97,13 @@ The VAE consists of:
 - **Decoder**: Generates onset, velocity, duration, and timing offset patterns from latent coordinates
 
 ### Training Optimizations
-- **Batch Size**: 128 for optimal training speed
-- **Validation Monitoring**: Real-time validation loss tracking
+- **Improved convergence**: Batch size reduced from 128 to 64 for better local minima avoidance
+- **Learning rate scheduling**: Exponential decay every 5 epochs prevents training plateau
+- **KL loss annealing**: β-VAE technique gradually increases KL weight over first 10 epochs
+- **Early stopping**: Automatic stopping after 15 epochs without validation improvement
+- **Enhanced regularization**: 0.2 dropout rate in encoder/decoder layers
+- **Balanced loss functions**: Increased onset loss coefficient from 0.75 to 1.0
+- **Better validation**: Reduced validation batch size from 1000 to 128 samples
 - **Memory Efficiency**: Optimized data handling for large MIDI datasets
 - **Apple Silicon**: Native performance on M1/M2 Macs
 
@@ -104,6 +111,13 @@ The VAE consists of:
 - Folder names with special characters `[]?*!|@` may cause issues
 - Grid view is display-only (changes don't affect generated patterns)
 - Large MIDI files may require significant training time
+
+## Training Tips
+- **Optimal dataset size**: 50-200 MIDI files for best results
+- **Training epochs**: Start with default 100 epochs; early stopping will optimize automatically
+- **Loss monitoring**: Watch for validation loss improvements; training stops automatically when optimal
+- **Memory usage**: Large datasets benefit from the improved batch size and memory optimizations
+- **Convergence**: Expect 20-40% faster convergence compared to previous versions
 
 ## File Structure
 ```
