@@ -231,6 +231,11 @@ Max.addHandler("train", ()=>{
         return;
     }
 
+    if (train_data_onsets.length == 0){
+        utils.error_status("No training data provided.");
+        return;
+    }
+
     utils.log_status("Start training...");
     console.log("# of bars in training data:", train_data_onsets.length * 2);
     reportNumberOfBars();
@@ -303,7 +308,11 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range){
       utils.log_status("");
       isGenerating = false;
   } else {
-      utils.error_status("Model is not trained yet");
+    if (vae.isTraining()){
+        utils.error_status("Still training...");
+    } else {
+        utils.error_status("Model is not trained yet");
+    }
   }
 }
 
@@ -339,6 +348,76 @@ Max.addHandler("loadmodel", (path)=>{
 Max.addHandler("epochs", (e)=>{
     vae.setEpochs(e);
     utils.post("number of epochs: " + e);
+});
+
+Max.addHandler("clearmodel", ()=>{
+    vae.clearModel();
+    utils.log_status("Model reset");
+});
+
+Max.addHandler("bend", (noise_range = 0.0)=>{
+    try {
+        vae.bendModel(noise_range);
+        utils.log_status("Model bent with noise range: " + noise_range);
+    } catch(error) {
+        console.log(error);
+        utils.error_status("Model bending failed");
+    }
+});
+
+// Start encoding... reset input matrix
+var input_onset;
+var input_velocity; 
+var input_duration;
+Max.addHandler("encode_start", (is_test) =>  {
+    Max.post("encode_start");
+    input_onset = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
+    input_velocity = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
+    input_duration = utils.create2DArray(NUM_MIDI_CLASSES, LOOP_DURATION);
+
+    if (is_test){
+        for (var i=0; i < LOOP_DURATION; i=i+4){
+            input_onset[0][i] = 1;
+            input_velocity[0][i] = 0.8;
+            input_duration[0][i] = 0.5;
+        }
+    }
+});
+
+Max.addHandler("encode_add", (pitch, time, duration, velocity, muted) =>  {
+    // add note
+    if (!muted){
+        var unit = 0.25; // 1.0 = quarter note, grid size = 16th note 
+        const half_unit = unit * 0.5;
+        const index = Math.max(0, Math.floor((time + half_unit) / unit)); // centering 
+        const durationUnit = (60.0 / 120.0) * 2.0; // duration of half note at 120 BPM
+        const normalizedDuration = Math.max(0.1, Math.min(duration / durationUnit, 2.0));
+        
+        Max.post("index", index, "pitch", pitch);
+        // Ignore notes after the first 2 bars and notes outside MIDI range
+        if (index < LOOP_DURATION && pitch >= MIN_MIDI_NOTE && pitch <= MAX_MIDI_NOTE){
+            let note_id = pitch - MIN_MIDI_NOTE; // convert to 0-23 range
+            input_onset[note_id][index] = 1;
+            input_velocity[note_id][index] = velocity/127.;
+            input_duration[note_id][index] = normalizedDuration;
+        }
+    }
+});
+
+Max.addHandler("encode_done", () =>  {
+    utils.post(input_onset);
+    utils.post(input_velocity);
+    utils.post(input_duration);
+
+    // Encoding!
+    var inputOn = tf.tensor2d(input_onset, [NUM_MIDI_CLASSES, LOOP_DURATION]);
+    var inputVel = tf.tensor2d(input_velocity, [NUM_MIDI_CLASSES, LOOP_DURATION]);
+    var inputDur = tf.tensor2d(input_duration, [NUM_MIDI_CLASSES, LOOP_DURATION]);
+    let zs = vae.encodePattern(inputOn, inputVel, inputDur);
+    
+    // output encoded z vector
+    utils.post(zs);
+    Max.outlet("zs", zs[0], zs[1]);  
 });
 
 function reportNumberOfBars(){
