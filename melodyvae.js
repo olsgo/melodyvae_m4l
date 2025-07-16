@@ -258,18 +258,22 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range, grid
       let [onsets, velocities, durations, timeshifts] = vae.generatePattern(z1, z2, noise_range);
       Max.outlet("matrix_clear",1); // clear all
 
-      // For Grid
-      for (var i=0; i< NUM_MIDI_CLASSES; i++){
-          var sequence = [];
-          // output for matrix view
-          for (var j=0; j < LOOP_DURATION; j++){
-              var x = 0.0;
-              // if (pattern[i * LOOP_DURATION + j] > 0.2) x = 1;
-              if (onsets[i][j] >= thresh_min && onsets[i][j] <= thresh_max){ 
-                x = 1;
-                Max.outlet("matrix_output", j + 1, i + 1, x); // index for live.grid starts from 1
-              }
-        } 
+      // For Grid - now monophonic to match pitch sequence output
+      for (var j = 0; j < LOOP_DURATION; j++) {
+        var bestIdx = -1;
+        var bestProb = -Infinity;
+        // Find the most confident note for this step (same logic as monophonic output)
+        for (var i = 0; i < NUM_MIDI_CLASSES; i++) {
+          var prob = onsets[i][j];
+          if (prob >= thresh_min && prob <= thresh_max && prob > bestProb) {
+            bestProb = prob;
+            bestIdx = i;
+          }
+        }
+        // Only output the best note for this step
+        if (bestIdx >= 0) {
+          Max.outlet("matrix_output", j + 1, bestIdx + 1, 1); // index for live.grid starts from 1
+        }
       }
 
 
