@@ -94,6 +94,10 @@ function log_status(message){
 function error_status(message){
     does_log_status(message, 1);
 }
+
+function scale(value, min, max, newMin, newMax) {
+    return ((value - min) / (max - min)) * (newMax - newMin) + newMin;
+}
   
 
 exports.create2DArray = create2DArray;
@@ -106,3 +110,4 @@ exports.post = post;
 exports.error = error;
 exports.log_status = log_status;
 exports.error_status = error_status;
+exports.scale = scale;

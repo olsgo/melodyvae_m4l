@@ -62,14 +62,9 @@ function initModel(){
       latentDim: LATENT_DIM
     },
     trainConfig:{
-      batchSize: 16,
+      batchSize: BATCH_SIZE,
       testBatchSize: TEST_BATCH_SIZE,
-      // epochs: 50,
-      optimizer: tf.train.adam(),
-    //   logMessage: ui.logMessage,
-    //   plotTrainLoss: ui.plotTrainLoss,
-    //   plotValLoss: ui.plotValLoss,
-    //   updateProgressBar: ui.updateProgressBar
+      optimizer: tf.train.adam()
     }
   });
 }
@@ -113,6 +108,18 @@ function generatePattern(z1, z2, noise_range=0.0){
   return model.generate(zs);
 }
 
+function encodePattern(inputOn, inputVel, inputDur){
+  return model.encode(inputOn, inputVel, inputDur);
+}
+
+function clearModel(){
+  model = null;
+}
+
+function bendModel(noise_range){
+  model.bendModel(noise_range);
+}
+
 async function saveModel(filepath){
   model.saveModel(filepath);
 }
@@ -120,9 +127,7 @@ async function saveModel(filepath){
 async function loadModel(filepath){
   if (!model) initModel();
   model.loadModel(filepath);
-}
-
-// Sampling Z 
+} 
 class sampleLayer extends tf.layers.Layer {
   constructor(args) {
     super({});
@@ -207,7 +212,7 @@ class ConditionalVAE {
 
     // build decoder model
     const decoderInputs = tf.input({shape: [latentDim]});
-    const x3Linear = tf.layers.dense({units: intermediateDim, useBias: true, kernelInitializer: 'glorotNormal'}).apply(decoderInputs);
+    const x3Linear = tf.layers.dense({units: intermediateDim * 2.0, useBias: true, kernelInitializer: 'glorotNormal'}).apply(decoderInputs);
     const x3Normalised = tf.layers.batchNormalization({axis: 1}).apply(x3Linear);
     const x3 = tf.layers.leakyReLU().apply(x3Normalised);
 
@@ -312,9 +317,6 @@ class ConditionalVAE {
     const testBatchSize = config.testBatchSize;
     const optimizer = config.optimizer;
     const logMessage = console.log;
-    const plotTrainLoss = console.log;
-    const plotValLoss = console.log;
-  //   const updateProgressBar = config.updateProgressBar;
 
     const originalDim = this.modelConfig.originalDim;
 
@@ -323,14 +325,16 @@ class ConditionalVAE {
       if (this.shouldStopTraining) break;
 
       let batchInputOn, batchInputVel, batchInputDur;
+      let testBatchInputOn, testBatchInputVel, testBatchInputDur;
       let trainLoss;
-      let epochLoss;
+      let epochLoss, valLoss;
 
       logMessage(`[Epoch ${i + 1}]\n`);
       Max.outlet("epoch", i + 1, epochs);
       utils.log_status(`Epoch: ${i + 1}`);
 
       epochLoss = 0;
+      // Training 
       for (let j = 0; j < numBatch; j++) {
         batchInputOn = dataHandlerOnset.nextTrainBatch(batchSize).xs.reshape([batchSize, originalDim]);
         batchInputVel = dataHandlerVelocity.nextTrainBatch(batchSize).xs.reshape([batchSize, originalDim]);
@@ -339,21 +343,24 @@ class ConditionalVAE {
             this.apply([batchInputOn, batchInputVel, batchInputDur])), true);
         trainLoss = Number(trainLoss.dataSync());
         epochLoss = epochLoss + trainLoss;
-        // logMessage(`\t[Batch ${j + 1}] Training Loss: ${trainLoss}.\n`);
-        //plotTrainLoss(trainLoss);
 
         await tf.nextFrame();
       }
-      epochLoss = epochLoss / numBatch;
-      logMessage(`\t[Average] Training Loss: ${epochLoss}.\n`);
-      logMessage(i, epochs);
-
+      epochLoss = epochLoss / numBatch; // average
+      logMessage(`\t[Average] Training Loss: ${epochLoss.toFixed(3)}. Epoch ${i} / ${epochs} \n`);
       Max.outlet("loss", epochLoss);
-      // testBatchInput = data.nextTrainBatch(testBatchSize).xs.reshape([testBatchSize, originalDim]);
-      // testBatchResult = this.apply(testBatchInput);
-      // valLoss = this.vaeLoss(testBatchInput, testBatchResult);
-      // valLoss = Number(valLoss.dataSync());
-      // plotValLoss(valLoss);
+
+      // Validation 
+      testBatchInputOn = dataHandlerOnset.nextTestBatch(testBatchSize).xs.reshape([testBatchSize, originalDim]);
+      testBatchInputVel = dataHandlerVelocity.nextTestBatch(testBatchSize).xs.reshape([testBatchSize, originalDim]);
+      testBatchInputDur = dataHandlerDuration.nextTestBatch(testBatchSize).xs.reshape([testBatchSize, originalDim]);
+      valLoss = this.vaeLoss([testBatchInputOn, testBatchInputVel, testBatchInputDur], 
+                                this.apply([testBatchInputOn, testBatchInputVel, testBatchInputDur]));
+      valLoss = Number(valLoss.dataSync());
+
+      logMessage(`\tVal Loss: ${valLoss.toFixed(3)}. Epoch ${i} / ${epochs}\n`);
+      Max.outlet("val_loss", valLoss);
+
       await tf.nextFrame();
     }
     this.isTrained = true;
@@ -372,6 +379,19 @@ class ConditionalVAE {
     return [outputsOn.arraySync(), outputsVel.arraySync(), outputsDur.arraySync()];
   }
 
+  bendModel(noise_range){
+    let weights = [];
+    for (let i = 0; i < this.decoder.getWeights().length; i++) {
+      let w = this.decoder.getWeights()[i];
+      let shape = w.shape;
+      console.log(shape);
+      let noise = tf.randomNormal(w.shape, 0.0, noise_range);
+      let neww = tf.add(w, noise);
+      weights.push(neww);
+    }
+    this.decoder.setWeights(weights);
+  }
+
   async saveModel(path){
     const saved = await this.decoder.save(path);
     utils.post(saved);
@@ -380,6 +400,23 @@ class ConditionalVAE {
   async loadModel(path){
     this.decoder = await tf.loadLayersModel(path);
     this.isTrained = true;
+  }
+
+  encode(inputOn, inputVel, inputDur){
+    if (!this.encoder) {
+      utils.error_status("Model is not trained yet");
+      return;
+    }
+
+    // reshaping...
+    inputOn = inputOn.reshape([1, ORIGINAL_DIM]);
+    inputVel = inputVel.reshape([1, ORIGINAL_DIM]);
+    inputDur = inputDur.reshape([1, ORIGINAL_DIM]);
+    
+    let [zMean, zLogVar, zs] = this.encoder.apply([inputOn, inputVel, inputDur]);
+    this.generate(zs); // generate melody pattern with the encoded z
+    zs = zs.arraySync();
+    return zs[0]; 
   }
 }
 
@@ -404,9 +441,12 @@ function range(start, edge, step) {
 exports.loadAndTrain = loadAndTrain;
 exports.saveModel = saveModel;
 exports.loadModel = loadModel;
+exports.clearModel = clearModel;
 exports.generatePattern = generatePattern;
+exports.encodePattern = encodePattern;
 exports.stopTraining = stopTraining;
 exports.isReadyToGenerate = isReadyToGenerate;
 exports.isTraining = isTraining;
 exports.setEpochs = setEpochs;
+exports.bendModel = bendModel;
 
