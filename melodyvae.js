@@ -309,6 +309,9 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range, grid
     }
 
       // Debug output: raw (unscaled) timeshift values for inspection
+      // This provides access to the raw VAE-generated timeshift values before 
+      // grid_offset scaling is applied, useful for understanding the model's 
+      // natural timing patterns and debugging timing-related issues.
       for (var k=0; k< 16; k++){ // 16 = number of monophonic sequence in live.step
         var raw_timeshift_sequence = [];
         for (var j=0; j < LOOP_DURATION; j++){

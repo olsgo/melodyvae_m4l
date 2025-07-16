@@ -5934,6 +5934,17 @@
 			}
 , 			{
 				"box" : 				{
+					"id" : "obj-debug_comment",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 556.5, 465.0, 200.0, 20.0 ],
+					"text" : "Debug: Raw timeshift values (before scaling)"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "obj-3",
 					"maxclass" : "newobj",
 					"numinlets" : 2,
