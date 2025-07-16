@@ -12,6 +12,7 @@ A derivative of [RhythmVAE_M4l](https://github.com/naotokui/RhythmVAE_M4L), opti
 - **Improved training performance** with validation loss monitoring
 - **Enhanced error handling** and user feedback
 - **Real-time generation** with adjustable threshold controls
+- **Monophonic output** selects the most confident note per step for clean melodies
 
 ## How it works
 
