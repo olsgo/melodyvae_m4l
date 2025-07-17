@@ -36,10 +36,24 @@ try {
 try {
     const fs = require('fs');
     const vaeContent = fs.readFileSync('./src/vae.js', 'utf8');
-    if (vaeContent.includes('TIME_LOSS_COEF = 5.0')) {
-        console.log("✓ VAE module contains updated timeshift loss coefficient");
+    if (vaeContent.includes('TIME_LOSS_COEF = 10.0')) {
+        console.log("✓ VAE module contains updated timeshift loss coefficient (10.0)");
     } else {
         console.log("✗ VAE module missing updated timeshift loss coefficient");
+        process.exit(1);
+    }
+    
+    if (vaeContent.includes('KL_ANNEALING_EPOCHS = 40')) {
+        console.log("✓ VAE module contains extended KL annealing period (40 epochs)");
+    } else {
+        console.log("✗ VAE module missing extended KL annealing period");
+        process.exit(1);
+    }
+    
+    if (vaeContent.includes('TIMESHIFT_VARIANCE_LOSS_COEF')) {
+        console.log("✓ VAE module contains timeshift variance preservation loss");
+    } else {
+        console.log("✗ VAE module missing timeshift variance preservation loss");
         process.exit(1);
     }
 } catch (error) {
@@ -109,14 +123,18 @@ if (!testScaling()) {
 }
 
 console.log("\n=== All Tests Passed ===");
-console.log("The timeshift implementation fix has been successfully applied.");
+console.log("The timeshift feature collapse fix has been successfully applied.");
 console.log("\nKey improvements:");
 console.log("- BEAT_RESOLUTION constant for consistent timing");
-console.log("- Increased timeshift loss coefficient (2.0 -> 5.0)");
+console.log("- Increased timeshift loss coefficient (5.0 -> 10.0)");
+console.log("- Extended KL annealing period (20 -> 40 epochs)");
+console.log("- Added timeshift variance preservation loss");
+console.log("- Enhanced monitoring and logging");
 console.log("- RhythmVAE-style output scaling (-1..1 -> 0..127)");
 console.log("- Backward compatibility maintained");
 
 console.log("\nNext steps:");
 console.log("1. Train a new model to take advantage of improved timeshift learning");
-console.log("2. Test generation with various grid_offset values");
-console.log("3. Verify timeshift output in Max/MSP environment");
+console.log("2. Monitor timeshift variance during training (target > 0.01)");
+console.log("3. Test generation with various grid_offset values");
+console.log("4. Verify timeshift output in Max/MSP environment");

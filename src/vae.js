@@ -21,14 +21,16 @@ const TEST_BATCH_SIZE = 128;  // Reduced from 1000 for more representative valid
 const ON_LOSS_COEF = 1.0;  // Increased from 0.75 for better onset reconstruction
 const DUR_LOSS_COEF = 1.0;  // coef for duration loss
 const VEL_LOSS_COEF = 2.5;  // coef for velocity loss
-const TIME_LOSS_COEF = 5.0;  // Updated to match RhythmVAE timeshift loss coefficient
+const TIME_LOSS_COEF = 10.0;  // Increased from 5.0 to address timeshift feature collapse
+const TIMESHIFT_VARIANCE_LOSS_COEF = 0.5;  // Coefficient for timeshift variance preservation loss
+const MIN_TIMESHIFT_VARIANCE = 0.01;  // Minimum required timeshift variance to prevent collapse
 
 // Training optimization parameters
 const LEARNING_RATE = 0.001;  // Initial learning rate
 const LEARNING_RATE_DECAY = 0.98;  // More conservative decay factor
 const LEARNING_RATE_DECAY_EPOCHS = 8;  // Decay every 8 epochs instead of 5
 const GRADIENT_CLIP_NORM = 1.0;  // Gradient clipping threshold
-const KL_ANNEALING_EPOCHS = 20;  // Slower KL annealing to prevent timeshift collapse
+const KL_ANNEALING_EPOCHS = 40;  // Extended from 20 to prevent premature timeshift collapse
 const TIMESHIFT_RAMP_EPOCHS = 15;  // Gradual ramping of timeshift loss weight
 const DROPOUT_RATE = 0.2;  // Dropout rate for regularization
 const EARLY_STOPPING_PATIENCE = 25;  // More patience for complex timeshift learning
@@ -349,14 +351,24 @@ class ConditionalVAE {
       const kl_weight = Math.min(1.0, currentEpoch / KL_ANNEALING_EPOCHS);
       const weighted_kl_loss = kl_loss.mul(tf.scalar(kl_weight));
       
+      // Timeshift variance preservation loss to prevent feature collapse
+      let variance_loss = tf.scalar(0.0);
+      if (currentEpoch > KL_ANNEALING_EPOCHS * 0.5) { // Start after KL annealing is halfway
+        const timeshift_variance = tf.moments(yTime).variance;
+        const variance_penalty = tf.maximum(tf.scalar(0.0), 
+          tf.scalar(MIN_TIMESHIFT_VARIANCE).sub(timeshift_variance));
+        variance_loss = variance_penalty.mul(tf.scalar(TIMESHIFT_VARIANCE_LOSS_COEF));
+      }
+      
       // console.log("onset_loss", tf.mean(onset_loss).dataSync());
       // console.log("velocity_loss", tf.mean(velocity_loss).dataSync());
       // console.log("duration_loss",  tf.mean(duration_loss).dataSync());
       // console.log("timeshift_loss",  tf.mean(timeshift_loss).dataSync());
       // console.log("kl_loss",  tf.mean(kl_loss).dataSync());
+      // console.log("variance_loss",  tf.mean(variance_loss).dataSync());
       // console.log("kl_weight", kl_weight);
       
-      const total_loss = tf.mean(onset_loss.add(velocity_loss).add(duration_loss).add(timeshift_loss).add(weighted_kl_loss)); // averaged in the batch
+      const total_loss = tf.mean(onset_loss.add(velocity_loss).add(duration_loss).add(timeshift_loss).add(weighted_kl_loss).add(variance_loss)); // averaged in the batch
       return total_loss;
     });
   }
@@ -399,8 +411,9 @@ class ConditionalVAE {
       // Calculate current weight schedules for logging
       const current_kl_weight = Math.min(1.0, i / KL_ANNEALING_EPOCHS);
       const current_timeshift_weight = Math.min(1.0, (i + 1) / TIMESHIFT_RAMP_EPOCHS);
+      const variance_preservation_active = i > KL_ANNEALING_EPOCHS * 0.5;
       
-      utils.log_status(`Epoch: ${i + 1} (LR: ${currentLearningRate.toFixed(6)}, KL: ${current_kl_weight.toFixed(3)}, TS: ${current_timeshift_weight.toFixed(3)})`);
+      utils.log_status(`Epoch: ${i + 1} (LR: ${currentLearningRate.toFixed(6)}, KL: ${current_kl_weight.toFixed(3)}, TS: ${current_timeshift_weight.toFixed(3)}, VarPres: ${variance_preservation_active ? 'ON' : 'OFF'})`);
 
       epochLoss = 0;
       
@@ -450,12 +463,27 @@ class ConditionalVAE {
       
       // Check if decodedTimeshift is a valid tensor before calling moments
       if (decodedTimeshift != null && decodedTimeshift !== undefined && decodedTimeshift !== false) {
-        const timeshiftVariance = tf.moments(decodedTimeshift).variance.dataSync()[0];
-        logMessage(`\tTimeshift variance: ${timeshiftVariance.toFixed(6)} (target > 0.01)`);
+        const timeshiftMoments = tf.moments(decodedTimeshift);
+        const timeshiftVariance = timeshiftMoments.variance.dataSync()[0];
+        const timeshiftMean = timeshiftMoments.mean.dataSync()[0];
         
-        // Warn if timeshift variance is too low (indicating collapse)
-        if (timeshiftVariance < 0.01 && i > KL_ANNEALING_EPOCHS) {
-          logMessage(`\t⚠️  WARNING: Timeshift variance low - potential feature collapse`);
+        // Enhanced variance logging with more details
+        logMessage(`\tTimeshift stats: mean=${timeshiftMean.toFixed(4)}, variance=${timeshiftVariance.toFixed(6)} (target > ${MIN_TIMESHIFT_VARIANCE})`);
+        
+        // Status indicators for variance preservation
+        if (i > KL_ANNEALING_EPOCHS * 0.5) {
+          logMessage(`\t📊 Variance preservation: ACTIVE (penalty for variance < ${MIN_TIMESHIFT_VARIANCE})`);
+        }
+        
+        // Enhanced warning system
+        if (timeshiftVariance < MIN_TIMESHIFT_VARIANCE) {
+          if (i > KL_ANNEALING_EPOCHS) {
+            logMessage(`\t⚠️  CRITICAL: Timeshift variance collapse detected! (${timeshiftVariance.toFixed(6)} < ${MIN_TIMESHIFT_VARIANCE})`);
+          } else {
+            logMessage(`\t⚠️  WARNING: Low timeshift variance during KL annealing (${timeshiftVariance.toFixed(6)} < ${MIN_TIMESHIFT_VARIANCE})`);
+          }
+        } else {
+          logMessage(`\t✅ Timeshift variance healthy (${timeshiftVariance.toFixed(6)} >= ${MIN_TIMESHIFT_VARIANCE})`);
         }
       } else {
         logMessage(`\t⚠️  WARNING: No training data available for timeshift variance calculation`);
