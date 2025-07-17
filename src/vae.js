@@ -448,8 +448,8 @@ class ConditionalVAE {
       // Monitor timeshift output variance to detect collapse
       const [, , , decodedTimeshift] = this.apply([testBatchInputOn, testBatchInputVel, testBatchInputDur, testBatchInputTime]);
       
-      // Check if decodedTimeshift is not null before calling moments
-      if (decodedTimeshift != null && decodedTimeshift !== undefined) {
+      // Check if decodedTimeshift is a valid tensor before calling moments
+      if (decodedTimeshift != null && decodedTimeshift !== undefined && decodedTimeshift !== false) {
         const timeshiftVariance = tf.moments(decodedTimeshift).variance.dataSync()[0];
         logMessage(`\tTimeshift variance: ${timeshiftVariance.toFixed(6)} (target > 0.01)`);
         
