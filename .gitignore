@@ -61,3 +61,6 @@ typings/
 .next
 .DS_Store
 test_data/**
+
+# Test files
+test_*.js
