@@ -21,7 +21,7 @@ const TEST_BATCH_SIZE = 128;  // Reduced from 1000 for more representative valid
 const ON_LOSS_COEF = 1.0;  // Increased from 0.75 for better onset reconstruction
 const DUR_LOSS_COEF = 1.0;  // coef for duration loss
 const VEL_LOSS_COEF = 2.5;  // coef for velocity loss
-const TIME_LOSS_COEF = 2.0;  // Increased from 1.5 for better timeshift learning
+const TIME_LOSS_COEF = 5.0;  // Updated to match RhythmVAE timeshift loss coefficient
 
 // Training optimization parameters
 const LEARNING_RATE = 0.001;  // Initial learning rate

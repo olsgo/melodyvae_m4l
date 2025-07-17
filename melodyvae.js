@@ -10,6 +10,7 @@ const MIN_MIDI_NOTE = require('./src/constants.js').MIN_MIDI_NOTE;
 const MAX_MIDI_NOTE = require('./src/constants.js').MAX_MIDI_NOTE;
 const NUM_MIDI_CLASSES = require('./src/constants.js').NUM_MIDI_CLASSES;
 const LOOP_DURATION = require('./src/constants.js').LOOP_DURATION;
+const BEAT_RESOLUTION = require('./src/constants.js').BEAT_RESOLUTION;
 const MIN_ONSETS_THRESHOLD = require('./src/constants.js').MIN_ONSETS_THRESHOLD;
 
 // VAE model and Utilities
@@ -44,7 +45,7 @@ function getTempo(midiFile){
 
 // Get location of a note in pianoroll
 function getNoteIndexAndTimeshift(note, tempo){
-    const unit = (60.0 / tempo) / 4.0; // the duration of 16th note
+    const unit = (60.0 / tempo) / BEAT_RESOLUTION; // the duration of 16th note
     const half_unit = unit * 0.5;
 
     const index = Math.max(0, Math.floor((note.time + half_unit) / unit)) // centering 
@@ -296,8 +297,9 @@ async function generatePattern(z1, z2, thresh_min, thresh_max, noise_range, grid
           pitch_sequence.push(bestIdx + MIN_MIDI_NOTE);
           velocity_sequence.push(Math.floor(velocities[bestIdx][j] * 127.));
           duration_sequence.push(Math.min(Math.floor(durations[bestIdx][j] * 64.), 127));
-          // Apply grid offset scaling to timeshift values
-          timeshift_sequence.push(timeshifts[bestIdx][j] * grid_offset);
+          // Apply RhythmVAE-style timeshift scaling: -1 to +1 -> 0 to 127, then apply grid_offset
+          var scaledTimeshift = Math.floor(utils.scale(timeshifts[bestIdx][j], -1., 1., 0, 127)) * grid_offset;
+          timeshift_sequence.push(scaledTimeshift);
         } else {
           pitch_sequence.push(0);
           velocity_sequence.push(0);
@@ -407,7 +409,7 @@ Max.addHandler("encode_start", (is_test) =>  {
 Max.addHandler("encode_add", (pitch, time, duration, velocity, muted) =>  {
     // add note
     if (!muted){
-        var unit = 0.25; // 1.0 = quarter note, grid size = 16th note 
+        var unit = (60.0 / 120.0) / BEAT_RESOLUTION; // Use BEAT_RESOLUTION for consistency
         const half_unit = unit * 0.5;
         const index = Math.max(0, Math.floor((time + half_unit) / unit)); // centering 
         const timeshift = (time - unit * index) / half_unit; // normalized timing offset
