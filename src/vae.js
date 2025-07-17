@@ -674,12 +674,8 @@ class ConditionalVAE {
     const numBatch = Math.floor(dataHandlerOnset.getDataSize() / batchSize);
     const epochs = numEpochs;
     const testBatchSize = config.testBatchSize;
-    let optimizer = tf.train.adam(LEARNING_RATE, ADAM_BETA1, ADAM_BETA2);
-    let timeshiftOptimizer = tf.train.adam(
-      LEARNING_RATE * 0.1,
-      ADAM_BETA1,
-      ADAM_BETA2
-    ); // Lower LR for timeshift head
+    let optimizer = tf.train.adam(LEARNING_RATE);
+    let timeshiftOptimizer = tf.train.adam(LEARNING_RATE * 0.1); // Lower LR for timeshift head
     const logMessage = utils.post; // Use utils.post for logging
 
     const originalDim = this.modelConfig.originalDim;
@@ -767,57 +763,56 @@ class ConditionalVAE {
           );
         };
 
-      const { value, grads } = tf.variableGrads(
-          f,
-          this.decoder.getWeights(true)
+        const varList = this.encoder
+          .getWeights(true)
+          .concat(this.decoder.getWeights(true));
+        const { value, grads } = tf.variableGrads(f, varList);
+
+        // Identify timeshift layers (last 13 layers of decoder are for timeshift head)
+        const timeshiftLayers = this.decoder.layers.slice(-13);
+        const timeshiftVarNames = timeshiftLayers.flatMap((l) =>
+          l.getWeights().map((w) => w.name)
         );
 
-        // Separate gradients for timeshift head
-        const timeshiftVars = this.decoder.layers.slice(-6).flatMap(l => l.getWeights());
-        const timeshiftGrads = {};
         const mainGrads = {};
+        const timeshiftGrads = {};
 
-        for (const gradName in grads) {
-          if (timeshiftVars.find(v => v.name === gradName)) {
-            timeshiftGrads[gradName] = grads[gradName];
+        for (const varName in grads) {
+          const grad = grads[varName];
+          if (timeshiftVarNames.includes(varName)) {
+            timeshiftGrads[varName] = tf.clipByValue(grad, -5.0, 5.0);
           } else {
-            mainGrads[gradName] = grads[gradName];
+            mainGrads[varName] = tf.clipByValue(grad, -5.0, 5.0);
           }
         }
 
-        // Clip and apply gradients
-        const clippedMainGrads = Object.keys(mainGrads).reduce((acc, key) => {
-            acc[key] = tf.clipByValue(mainGrads[key], -5.0, 5.0);
-            return acc;
-        }, {});
-        const clippedTimeshiftGrads = Object.keys(timeshiftGrads).reduce((acc, key) => {
-            acc[key] = tf.clipByValue(timeshiftGrads[key], -5.0, 5.0);
-            return acc;
-        }, {});
+        optimizer.applyGradients(mainGrads);
+        timeshiftOptimizer.applyGradients(timeshiftGrads);
 
-        optimizer.applyGradients(clippedMainGrads);
-        timeshiftOptimizer.applyGradients(clippedTimeshiftGrads);
-
-        const timeshiftDecoderLayer =
-          this.decoder.layers[this.decoder.layers.length - 1];
-          
-        const timeshiftGrads = grads[timeshiftDecoderLayer.name];
-        if (timeshiftGrads) {
+        // Log timeshift gradients
+        const timeshiftGradTensors = Object.values(timeshiftGrads);
+        if (timeshiftGradTensors.length > 0) {
+          const allTimeshiftGrads = tf.tidy(() =>
+            tf.concat(timeshiftGradTensors.map((t) => t.flatten()))
+          );
           logMessage(
-            `	   Timeshift Grads Mean: ${tf
-              .mean(timeshiftGrads)
+            `\t   Timeshift Grads Mean: ${tf
+              .mean(allTimeshiftGrads)
               .dataSync()[0]
               .toFixed(6)}, Max: ${tf
-              .max(timeshiftGrads)
+              .max(allTimeshiftGrads)
               .dataSync()[0]
               .toFixed(6)}`
           );
+          allTimeshiftGrads.dispose();
         }
 
         // Dispose original and clipped grads to prevent memory leaks
         for (const key in grads) {
           grads[key].dispose();
         }
+        Object.values(mainGrads).forEach((t) => t.dispose());
+        Object.values(timeshiftGrads).forEach((t) => t.dispose());
 
         trainLoss = Number(value.dataSync());
         epochLoss = epochLoss + trainLoss;
