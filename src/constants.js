@@ -1,7 +1,5 @@
-
-
-const MIN_MIDI_NOTE = 48;
-const MAX_MIDI_NOTE = 71;
+const MIN_MIDI_NOTE = 36;
+const MAX_MIDI_NOTE = 64;
 
 const NUM_MIDI_CLASSES = MAX_MIDI_NOTE - MIN_MIDI_NOTE + 1; // 24
 
