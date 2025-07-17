@@ -447,12 +447,18 @@ class ConditionalVAE {
 
       // Monitor timeshift output variance to detect collapse
       const [, , , decodedTimeshift] = this.apply([testBatchInputOn, testBatchInputVel, testBatchInputDur, testBatchInputTime]);
-      const timeshiftVariance = tf.moments(decodedTimeshift).variance.dataSync()[0];
-      logMessage(`\tTimeshift variance: ${timeshiftVariance.toFixed(6)} (target > 0.01)`);
       
-      // Warn if timeshift variance is too low (indicating collapse)
-      if (timeshiftVariance < 0.01 && i > KL_ANNEALING_EPOCHS) {
-        logMessage(`\t⚠️  WARNING: Timeshift variance low - potential feature collapse`);
+      // Check if decodedTimeshift is a valid tensor before calling moments
+      if (decodedTimeshift != null && decodedTimeshift !== undefined && decodedTimeshift !== false) {
+        const timeshiftVariance = tf.moments(decodedTimeshift).variance.dataSync()[0];
+        logMessage(`\tTimeshift variance: ${timeshiftVariance.toFixed(6)} (target > 0.01)`);
+        
+        // Warn if timeshift variance is too low (indicating collapse)
+        if (timeshiftVariance < 0.01 && i > KL_ANNEALING_EPOCHS) {
+          logMessage(`\t⚠️  WARNING: Timeshift variance low - potential feature collapse`);
+        }
+      } else {
+        logMessage(`\t⚠️  WARNING: No training data available for timeshift variance calculation`);
       }
 
       // Early stopping check
