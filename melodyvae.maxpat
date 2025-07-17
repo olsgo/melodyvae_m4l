@@ -5508,8 +5508,6 @@
 					"saved_object_attributes" : 					{
 						"autostart" : 1,
 						"defer" : 0,
-						"node_bin_path" : "",
-						"npm_bin_path" : "",
 						"watch" : 0
 					}
 ,
@@ -6406,7 +6404,7 @@
 			}
 , 			{
 				"name" : "count_for_me.maxpat",
-				"bootpath" : "~/Projects/melodyvae/melodyvae_m4l/subpatches",
+				"bootpath" : "~/Projects/melodyvae_m4l/subpatches",
 				"patcherrelativepath" : "./subpatches",
 				"type" : "JSON",
 				"implicit" : 1
@@ -6419,14 +6417,14 @@
 			}
 , 			{
 				"name" : "makenote_for_me.maxpat",
-				"bootpath" : "~/Projects/melodyvae/melodyvae_m4l/subpatches",
+				"bootpath" : "~/Projects/melodyvae_m4l/subpatches",
 				"patcherrelativepath" : "./subpatches",
 				"type" : "JSON",
 				"implicit" : 1
 			}
 , 			{
 				"name" : "melodyvae.js",
-				"bootpath" : "~/Projects/melodyvae/melodyvae_m4l",
+				"bootpath" : "~/Projects/melodyvae_m4l",
 				"patcherrelativepath" : ".",
 				"type" : "TEXT",
 				"implicit" : 1
@@ -6445,14 +6443,14 @@
 			}
 , 			{
 				"name" : "setup_1_16.maxpat",
-				"bootpath" : "~/Projects/melodyvae/melodyvae_m4l/subpatches",
+				"bootpath" : "~/Projects/melodyvae_m4l/subpatches",
 				"patcherrelativepath" : "./subpatches",
 				"type" : "JSON",
 				"implicit" : 1
 			}
 , 			{
 				"name" : "shuffle_metro.maxpat",
-				"bootpath" : "~/Projects/melodyvae/melodyvae_m4l/subpatches",
+				"bootpath" : "~/Projects/melodyvae_m4l/subpatches",
 				"patcherrelativepath" : "./subpatches",
 				"type" : "JSON",
 				"implicit" : 1

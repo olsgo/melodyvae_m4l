@@ -1,10 +1,10 @@
-const MIN_MIDI_NOTE = 36;
+const MIN_MIDI_NOTE = 40;
 const MAX_MIDI_NOTE = 64;
 
 const NUM_MIDI_CLASSES = MAX_MIDI_NOTE - MIN_MIDI_NOTE + 1; // 24
 
 const LOOP_DURATION = 32; // 2bars x 16th note
-const BEAT_RESOLUTION = 4.0; // 16th note resolution (4 subdivisions per quarter note)
+const BEAT_RESOLUTION = 12; // 16th note resolution (4 subdivisions per quarter note)
 
 const ORIGINAL_DIM = NUM_MIDI_CLASSES * LOOP_DURATION;
 
